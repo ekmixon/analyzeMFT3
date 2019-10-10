@@ -6,7 +6,7 @@ and present the results as accurately as possible in multiple formats.
 
 Installation
 ===========
-You should now be able to install analyzeMFT with pip:
+This needs to be updated to support Python3. As of now, to get the Python2 version you should now be able to install analyzeMFT with pip:
 
     pip install analyzeMFT
     
@@ -49,7 +49,6 @@ Other options:
   -a, --anomaly         turn on anomaly detection
   -l, --localtz         report times using local timezone
   -e, --excel           print date/time in Excel friendly format
-  -d, --debug           turn on debugging output
   -s, --saveinmemory    Save a copy of the decoded MFT in memory. Do not use
                         for very large MFTs
   -p, --progress        Show systematic progress reports.
