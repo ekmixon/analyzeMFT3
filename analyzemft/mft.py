@@ -36,7 +36,7 @@ def parse_record(raw_record, options):
 
     if raw_record == b"":
         return
-    
+
     decode_mft_header(record, raw_record)
     # HACK: Apply the NTFS fixup on a 1024 byte record.
     # Note that the fixup is only applied locally to this function.
@@ -158,14 +158,20 @@ def mft_to_csv(record, ret_header, options):
                       'ADS', 'Possible Copy', 'Possible Volume Move']
 
     if 'baad' in record:
-        csv_string = ["%s" % record['recordnum'], "BAAD MFT Record"]
+        csv_string = [f"{record['recordnum']}", "BAAD MFT Record"]
         return csv_string
 
     csv_string = [record['recordnum'], decode_mft_magic(record), decode_mft_isactive(record),
                   decode_mft_recordtype(record)]
-        
+
     if 'corrupt' in record:
-        tmp_string = ["%s" % record['recordnum'], "Corrupt", "Corrupt", "Corrupt MFT Record"]
+        tmp_string = [
+            f"{record['recordnum']}",
+            "Corrupt",
+            "Corrupt",
+            "Corrupt MFT Record",
+        ]
+
         csv_string.extend(tmp_string)
         return csv_string
 
@@ -176,7 +182,7 @@ def mft_to_csv(record, ret_header, options):
         csv_string.extend([str(record['fn', 0]['par_ref']), str(record['fn', 0]['par_seq'])])
     else:
         csv_string.extend(['NoParent', 'NoParent'])
-        
+
     if record['fncnt'] > 0 and 'si' in record:
         filename_buffer = [
             record['filename'],
@@ -238,7 +244,7 @@ def mft_to_csv(record, ret_header, options):
         tmp_string = ['', '', '', '', '']
     else:
         tmp_string = []
-    
+
     csv_string.extend(tmp_string)
 
     for record_str in ['si', 'al']:
@@ -317,41 +323,72 @@ def mft_to_body(record, full, std):
 
     if record['fncnt'] > 0:
 
-        if full:  # Use full path
-            name = record['filename']
-        else:
-            name = record['fn', 0]['name']
+        name = record['filename'] if full else record['fn', 0]['name']
+        return (
+            (
+                "%s|%s|%s|%s|%s|%s|%s|%d|%d|%d|%d\n"
+                % (
+                    '0',
+                    name,
+                    '0',
+                    '0',
+                    '0',
+                    '0',
+                    int(record['fn', 0]['real_fsize']),
+                    int(record['si']['atime'].unixtime),  # was str ....
+                    int(record['si']['mtime'].unixtime),
+                    int(record['si']['ctime'].unixtime),
+                    int(record['si']['ctime'].unixtime),
+                )
+            )
+            if std
+            else (
+                "%s|%s|%s|%s|%s|%s|%s|%d|%d|%d|%d\n"
+                % (
+                    '0',
+                    name,
+                    '0',
+                    '0',
+                    '0',
+                    '0',
+                    int(record['fn', 0]['real_fsize']),
+                    int(record['fn', 0]['atime'].unixtime),
+                    int(record['fn', 0]['mtime'].unixtime),
+                    int(record['fn', 0]['ctime'].unixtime),
+                    int(record['fn', 0]['crtime'].unixtime),
+                )
+            )
+        )
 
-        if std:  # Use STD_INFO
-            rec_bodyfile = ("%s|%s|%s|%s|%s|%s|%s|%d|%d|%d|%d\n" %
-                            ('0', name, '0', '0', '0', '0',
-                             int(record['fn', 0]['real_fsize']),
-                             int(record['si']['atime'].unixtime),  # was str ....
-                             int(record['si']['mtime'].unixtime),
-                             int(record['si']['ctime'].unixtime),
-                             int(record['si']['ctime'].unixtime)))
-        else:  # Use FN
-            rec_bodyfile = ("%s|%s|%s|%s|%s|%s|%s|%d|%d|%d|%d\n" %
-                            ('0', name, '0', '0', '0', '0',
-                             int(record['fn', 0]['real_fsize']),
-                             int(record['fn', 0]['atime'].unixtime),
-                             int(record['fn', 0]['mtime'].unixtime),
-                             int(record['fn', 0]['ctime'].unixtime),
-                             int(record['fn', 0]['crtime'].unixtime)))
+    elif 'si' in record:
+        return "%s|%s|%s|%s|%s|%s|%s|%d|%d|%d|%d\n" % (
+            '0',
+            'No FN Record',
+            '0',
+            '0',
+            '0',
+            '0',
+            '0',
+            int(record['si']['atime'].unixtime),  # was str ....
+            int(record['si']['mtime'].unixtime),
+            int(record['si']['ctime'].unixtime),
+            int(record['si']['ctime'].unixtime),
+        )
 
     else:
-        if 'si' in record:
-            rec_bodyfile = ("%s|%s|%s|%s|%s|%s|%s|%d|%d|%d|%d\n" %
-                            ('0', 'No FN Record', '0', '0', '0', '0', '0',
-                             int(record['si']['atime'].unixtime),  # was str ....
-                             int(record['si']['mtime'].unixtime),
-                             int(record['si']['ctime'].unixtime),
-                             int(record['si']['ctime'].unixtime)))
-        else:
-            rec_bodyfile = ("%s|%s|%s|%s|%s|%s|%s|%d|%d|%d|%d\n" %
-                            ('0', 'Corrupt Record', '0', '0', '0', '0', '0', 0, 0, 0, 0))
-
-    return rec_bodyfile
+        return "%s|%s|%s|%s|%s|%s|%s|%d|%d|%d|%d\n" % (
+            '0',
+            'Corrupt Record',
+            '0',
+            '0',
+            '0',
+            '0',
+            '0',
+            0,
+            0,
+            0,
+            0,
+        )
 
 
 # l2t CSV output support
@@ -371,16 +408,16 @@ def mft_to_l2t(record):
             if i == 'atime':
                 type_str = '$FN [.A..] time'
                 macb_str = '.A..'
-            if i == 'mtime':
-                type_str = '$FN [M...] time'
-                macb_str = 'M...'
-            if i == 'ctime':
-                type_str = '$FN [..C.] time'
-                macb_str = '..C.'
-            if i == 'crtime':
+            elif i == 'crtime':
                 type_str = '$FN [...B] time'
                 macb_str = '...B'
 
+            elif i == 'ctime':
+                type_str = '$FN [..C.] time'
+                macb_str = '..C.'
+            elif i == 'mtime':
+                type_str = '$FN [M...] time'
+                macb_str = 'M...'
             csv_string = ("%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n" % (
                 date, time, 'TZ', macb_str, 'FILE', 'NTFS $MFT', type_str, 'user', 'host',
                 record['filename'],
@@ -396,16 +433,16 @@ def mft_to_l2t(record):
             if i == 'atime':
                 type_str = '$SI [.A..] time'
                 macb_str = '.A..'
-            if i == 'mtime':
-                type_str = '$SI [M...] time'
-                macb_str = 'M...'
-            if i == 'ctime':
-                type_str = '$SI [..C.] time'
-                macb_str = '..C.'
-            if i == 'crtime':
+            elif i == 'crtime':
                 type_str = '$SI [...B] time'
                 macb_str = '...B'
 
+            elif i == 'ctime':
+                type_str = '$SI [..C.] time'
+                macb_str = '..C.'
+            elif i == 'mtime':
+                type_str = '$SI [M...] time'
+                macb_str = 'M...'
             csv_string = ("%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n" % (
                 date, time, 'TZ', macb_str, 'FILE', 'NTFS $MFT', type_str, 'user', 'host',
                 record['filename'],
@@ -423,9 +460,9 @@ def mft_to_l2t(record):
 
 def add_note(record, s):
     if record['notes'] == '':
-        record['notes'] = "%s" % s
+        record['notes'] = f"{s}"
     else:
-        record['notes'] = "%s | %s |" % (record['notes'], s)
+        record['notes'] = f"{record['notes']} | {s} |"
 
 
 def decode_mft_header(record, raw_record):
@@ -479,21 +516,15 @@ def decode_mft_magic(record):
 # I had this coded incorrectly initially. Spencer Lynch identified and fixed the code. Many thanks!
 
 def decode_mft_isactive(record):
-    if record['flags'] & 0x0001:
-        return 'Active'
-    else:
-        return 'Inactive'
+    return 'Active' if record['flags'] & 0x0001 else 'Inactive'
 
 
 def decode_mft_recordtype(record):
-    if int(record['flags']) & 0x0002:
-        tmp_buffer = 'Folder'
-    else:
-        tmp_buffer = 'File'
+    tmp_buffer = 'Folder' if int(record['flags']) & 0x0002 else 'File'
     if int(record['flags']) & 0x0004:
-        tmp_buffer = "%s %s" % (tmp_buffer, '+ Unknown1')
+        tmp_buffer = f"{tmp_buffer} + Unknown1"
     if int(record['flags']) & 0x0008:
-        tmp_buffer = "%s %s" % (tmp_buffer, '+ Unknown2')
+        tmp_buffer = f"{tmp_buffer} + Unknown2"
 
     return tmp_buffer
 
@@ -583,18 +614,36 @@ def unpack_dataruns(datarun_str):
 
 
 def decode_si_attribute(s, localtz):
-    d = {
-        'crtime': mftutils.WindowsTime(struct.unpack("<L", s[:4])[0], struct.unpack("<L", s[4:8])[0], localtz),
-        'mtime': mftutils.WindowsTime(struct.unpack("<L", s[8:12])[0], struct.unpack("<L", s[12:16])[0], localtz),
-        'ctime': mftutils.WindowsTime(struct.unpack("<L", s[16:20])[0], struct.unpack("<L", s[20:24])[0], localtz),
-        'atime': mftutils.WindowsTime(struct.unpack("<L", s[24:28])[0], struct.unpack("<L", s[28:32])[0], localtz),
-        'dos': struct.unpack("<I", s[32:36])[0], 'maxver': struct.unpack("<I", s[36:40])[0],
-        'ver': struct.unpack("<I", s[40:44])[0], 'class_id': struct.unpack("<I", s[44:48])[0],
-        'own_id': struct.unpack("<I", s[48:52])[0], 'sec_id': struct.unpack("<I", s[52:56])[0],
-        'quota': struct.unpack("<d", s[56:64])[0], 'usn': struct.unpack("<d", s[64:72])[0],
+    return {
+        'crtime': mftutils.WindowsTime(
+            struct.unpack("<L", s[:4])[0],
+            struct.unpack("<L", s[4:8])[0],
+            localtz,
+        ),
+        'mtime': mftutils.WindowsTime(
+            struct.unpack("<L", s[8:12])[0],
+            struct.unpack("<L", s[12:16])[0],
+            localtz,
+        ),
+        'ctime': mftutils.WindowsTime(
+            struct.unpack("<L", s[16:20])[0],
+            struct.unpack("<L", s[20:24])[0],
+            localtz,
+        ),
+        'atime': mftutils.WindowsTime(
+            struct.unpack("<L", s[24:28])[0],
+            struct.unpack("<L", s[28:32])[0],
+            localtz,
+        ),
+        'dos': struct.unpack("<I", s[32:36])[0],
+        'maxver': struct.unpack("<I", s[36:40])[0],
+        'ver': struct.unpack("<I", s[40:44])[0],
+        'class_id': struct.unpack("<I", s[44:48])[0],
+        'own_id': struct.unpack("<I", s[48:52])[0],
+        'sec_id': struct.unpack("<I", s[52:56])[0],
+        'quota': struct.unpack("<d", s[56:64])[0],
+        'usn': struct.unpack("<d", s[64:72])[0],
     }
-
-    return d
 
 
 def decode_fn_attribute(s, localtz, _):
@@ -643,63 +692,56 @@ def decode_volume_info(s, options):
 
 # Decode a Resident Data Attribute
 def decode_data_attribute(s, at_rrecord):
-    d = {'data': s[:at_rrecord['ssize']]}
-
-    return d
+    return {'data': s[:at_rrecord['ssize']]}
 
 def decode_object_id(s):
 
-    d = {
-        'objid': object_id(s[0:16]),
+    return {
+        'objid': object_id(s[:16]),
         'orig_volid': object_id(s[16:32]),
         'orig_objid': object_id(s[32:48]),
         'orig_domid': object_id(s[48:64]),
     }
 
-    return d
-
 
 def object_id(s):
-    if s == 0:
-        objstr = 'Undefined'
-    else:
-        objstr = "{}-{}-{}-{}-{}".format(binascii.hexlify(s[0:4]).decode("utf-8"), 
-                                         binascii.hexlify(s[4:6]).decode("utf-8"),
-                                         binascii.hexlify(s[6:8]).decode("utf-8"), 
-                                         binascii.hexlify(s[8:10]).decode("utf-8"), 
-                                         binascii.hexlify(s[10:16]).decode("utf-8"))
-
-    return objstr
+    return (
+        'Undefined'
+        if s == 0
+        else f'{binascii.hexlify(s[:4]).decode("utf-8")}-{binascii.hexlify(s[4:6]).decode("utf-8")}-{binascii.hexlify(s[6:8]).decode("utf-8")}-{binascii.hexlify(s[8:10]).decode("utf-8")}-{binascii.hexlify(s[10:16]).decode("utf-8")}'
+    )
 
 def anomaly_detect(record):
-    if record['fncnt'] > 0:
-
-        # Check for STD create times that are before the FN create times
-        try:
-            if record['si']['crtime'].dt < record['fn', 0]['crtime'].dt:
-                record['stf-fn-shift'] = True
-        except:
-            pass
+    if record['fncnt'] <= 0:
+        return
+    # Check for STD create times that are before the FN create times
+    try:
+        if record['si']['crtime'].dt < record['fn', 0]['crtime'].dt:
+            record['stf-fn-shift'] = True
+    except:
+        pass
 
         # Check for STD create times with a nanosecond value of '0'     
-        try:
-            if record['si']['crtime'].dt != 0:
-                if record['si']['crtime'].dt.microsecond == 0:
-                    record['usec-zero'] = True
-        except:
-            pass
+    try:
+        if (
+            record['si']['crtime'].dt != 0
+            and record['si']['crtime'].dt.microsecond == 0
+        ):
+            record['usec-zero'] = True
+    except:
+        pass
 
-        # Check for STD create times that are after the STD modify times.  This is often the result of a file copy.
-        try:
-            if record['si']['crtime'].dt > record['si']['mtime'].dt:
-                record['possible-copy'] = True
-        except:
-            pass
+    # Check for STD create times that are after the STD modify times.  This is often the result of a file copy.
+    try:
+        if record['si']['crtime'].dt > record['si']['mtime'].dt:
+            record['possible-copy'] = True
+    except:
+        pass
 
-        # Check for STD access times that are after the STD modify and STD create times.  For systems with last access 
-        # timestamp disabled (Windows Vista+), this is an indication of a file moved from one volume to another.
-        try:
-            if record['si']['atime'].dt > record['si']['mtime'].dt and record['si']['atime'].dt > record['si']['crtime'].dt:
-                record['possible-volmove'] = True
-        except:
-            pass
+    # Check for STD access times that are after the STD modify and STD create times.  For systems with last access 
+    # timestamp disabled (Windows Vista+), this is an indication of a file moved from one volume to another.
+    try:
+        if record['si']['atime'].dt > record['si']['mtime'].dt and record['si']['atime'].dt > record['si']['crtime'].dt:
+            record['possible-volmove'] = True
+    except:
+        pass

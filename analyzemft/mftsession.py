@@ -61,7 +61,7 @@ class MftSession:
         parser.add_option("-j", "--json",
                           dest="json",
                           help="File paths should use the windows path separator instead of linux")        
-        
+
         parser.add_option("-o", "--output", dest="output",
                           help="write results to FILE", metavar="FILE")
 
@@ -100,8 +100,8 @@ class MftSession:
         parser.add_option("-w", "--windows-path",
                           action="store_true", dest="winpath",
                           help="File paths should use the windows path separator instead of linux")
-        
-        
+
+
         (self.options, args) = parser.parse_args()
 
         self.path_sep = '\\' if self.options.winpath else '/'
@@ -160,10 +160,7 @@ class MftSession:
         sizeinbytes = self.mftsize * 4500
 
         try:
-            arr = []
-            for i in range(0, sizeinbytes / 10):
-                arr.append(1)
-
+            arr = [1 for _ in range(sizeinbytes / 10)]
         except MemoryError:
             print("Error: Not enough memory to store MFT in memory. Try running again without -s option")
             sys.exit()
@@ -187,7 +184,7 @@ class MftSession:
             self.num_records += 1
 
             if record['ads'] > 0:
-                for i in range(0, record['ads']):
+                for i in range(record['ads']):
                     record_ads = record.copy()
                     record_ads['filename'] = record['filename'] + ':' + record['data_name', i].decode("utf-8")
                     self.do_output(record_ads)
@@ -195,27 +192,30 @@ class MftSession:
             raw_record = self.file_mft.read(1024)
 
     def do_output(self, record):
-        
+
         if self.options.inmemory:
             self.fullmft[self.num_records] = record
 
         if self.options.output is not None:
             self.file_csv.writerow(mft.mft_to_csv(record, False, self.options))
-        
+
         if self.options.json is not None:    
             with open(self.options.json, 'a') as outfile:
                 json.dump(mft.mft_to_json(record), outfile)
                 outfile.write('\n')
-            
+
         if self.options.csvtimefile is not None:
             self.file_csv_time.write(mft.mft_to_l2t(record))
 
         if self.options.bodyfile is not None:
             self.file_body.write(mft.mft_to_body(record, self.options.bodyfull, self.options.bodystd))
 
-        if self.options.progress:
-            if self.num_records % (self.mftsize / 5) == 0 and self.num_records > 0:
-                print("Building MFT: {0:.0f}".format(100.0 * self.num_records / self.mftsize) + "%")
+        if (
+            self.options.progress
+            and self.num_records % (self.mftsize / 5) == 0
+            and self.num_records > 0
+        ):
+            print("Building MFT: {0:.0f}".format(100.0 * self.num_records / self.mftsize) + "%")
 
     def plaso_process_mft_file(self):
 
@@ -226,51 +226,43 @@ class MftSession:
         # reset the file reading
         self.num_records = 0
         self.file_mft.seek(0)
-        raw_record = self.file_mft.read(1024)
-
-        while raw_record:
+        while raw_record := self.file_mft.read(1024):
             record = mft.parse_record(raw_record, self.options)
 
             record['filename'] = self.mft[self.num_records]['filename']
             self.fullmft[self.num_records] = record
             self.num_records += 1
-            raw_record = self.file_mft.read(1024)
 
     def build_filepaths(self):
         # reset the file reading
         self.file_mft.seek(0)
         self.num_records = 0
 
-        # 1024 is valid for current version of Windows but should really get this value from somewhere
-        raw_record = self.file_mft.read(1024)
-
-        while raw_record:
-            minirec = {}
-            
+        while raw_record := self.file_mft.read(1024):
             record = mft.parse_record(raw_record, self.options)
-            
-            minirec['filename'] = record['filename']
-            minirec['fncnt'] = record['fncnt']
+
+            minirec = {'filename': record['filename'], 'fncnt': record['fncnt']}
             if record['fncnt'] == 1:
                 minirec['par_ref'] = record['fn', 0]['par_ref']
                 minirec['name'] = record['fn', 0]['name']
             if record['fncnt'] > 1:
                 minirec['par_ref'] = record['fn', 0]['par_ref']
                 for i in (0, record['fncnt'] - 1):
-                    if record['fn', i]['nspace'] == 0x1 or record['fn', i]['nspace'] == 0x3:
+                    if record['fn', i]['nspace'] in [0x1, 0x3]:
                         minirec['name'] = record['fn', i]['name']
                 if minirec.get('name') is None:
                     minirec['name'] = record['fn', record['fncnt'] - 1]['name']
 
             self.mft[self.num_records] = minirec
 
-            if self.options.progress:
-                if self.num_records % (self.mftsize / 5) == 0 and self.num_records > 0:
-                    print("Building Filepaths: {0:.0f}".format(100.0 * self.num_records / self.mftsize) + "%")
+            if (
+                self.options.progress
+                and self.num_records % (self.mftsize / 5) == 0
+                and self.num_records > 0
+            ):
+                print("Building Filepaths: {0:.0f}".format(100.0 * self.num_records / self.mftsize) + "%")
 
             self.num_records += 1
-
-            raw_record = self.file_mft.read(1024)
 
         self.gen_filepaths()
 
@@ -291,7 +283,10 @@ class MftSession:
 
         # Self referential parent sequence number. The filename becomes a NoFNRecord note
         if (self.mft[seqnum]['par_ref']) == seqnum:
-            self.mft[seqnum]['filename'] = 'ORPHAN' + self.path_sep + self.mft[seqnum]['name'].decode("utf-8")
+            self.mft[seqnum]['filename'] = f'ORPHAN{self.path_sep}' + self.mft[
+                seqnum
+            ]['name'].decode("utf-8")
+
             return self.mft[seqnum]['filename']
 
         # We're not at the top of the tree and we've not hit an error
